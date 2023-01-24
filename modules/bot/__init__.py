@@ -16,13 +16,9 @@ def clear_MD(text: str) -> str:
     return text
 
 
-async def send(chat_id, text, link):
-    markup = types.InlineKeyboardMarkup()
-    link_button = types.InlineKeyboardButton(text='Order Link', url=link)
-    markup.add(link_button)
+async def send(chat_id, text):
     try:
         return await bot.send_message(chat_id, text)
-        # return await bot.send_message(chat_id, text, reply_markup=markup)
     except exceptions.BotBlocked:
         ...
     except exceptions.ChatNotFound:

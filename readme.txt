@@ -9,3 +9,5 @@
 
 
 Запуск: `python main.py`
+
+PUMB, A-Bank, Sportbank, Monobank, Wise, NEO, Bank Pivdenny, Advcash, Sense SuperApp, Izibank, Bank Vlasnyi Rakhunok

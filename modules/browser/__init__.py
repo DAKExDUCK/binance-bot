@@ -1,4 +1,4 @@
-from selenium import webdriver
+from seleniumwire import webdriver
 from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -23,3 +23,16 @@ class Browser:
         for cookie in session_cookies:
             cookies[cookie['name']] = cookie['value']
         return cookies
+
+    def get_headers(self):
+        req_list = []
+        for request in self.driver.requests:
+            url_temp = request.url
+            headers_temp = request.headers
+            req_list.append([url_temp, headers_temp])
+
+        req_list.reverse()
+
+        for url_temp, headers_temp in req_list:
+            if url_temp == 'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search':
+                return dict(headers_temp)
