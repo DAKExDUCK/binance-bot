@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import json
 import os
 import time
@@ -141,12 +142,12 @@ class Binance:
             '//*[@id="__APP"]/div[2]/main/div[1]/div[3]/div[2]/div/div[6]/div/div[2]/div/div[2]'
         ))).click()
 
-    def check_orders_buy(self):
-        status, data = self.get_orders('UAH', 'USDT')
+    def check_orders_buy(self, fiat: str, asset: str):
+        status, data = self.get_orders(fiat, asset)
         
         if data['code'] != '000000' or status != 200:
             logger.error(data['message'])
-            time.sleep(5)
+            time.sleep(10)
             return
 
         logger.info('Checking orders...')
@@ -158,8 +159,8 @@ class Binance:
             order_fiat = order['adv']['fiatUnit']
             order_price = order['adv']['price']
             order_asset_amount = order['adv']['surplusAmount']
-            order_min = order['adv']['dynamicMaxSingleTransAmount']
-            order_max = order['adv']['minSingleTransAmount']
+            order_max = order['adv']['dynamicMaxSingleTransAmount']
+            order_min = order['adv']['minSingleTransAmount']
             order_trade_methods_name = [ trade_method['tradeMethodName'] for trade_method in order['adv']['tradeMethods'] ]
 
             if len(set(order_trade_methods_name) & set(self.desired_banks)) > 0:
@@ -174,17 +175,18 @@ class Binance:
                     status, result = self.make_order(order_fiat, order_asset, order_id, order_price, payment_amount)
                     if result['code'] != '000000' or status != 200:
                         if result['code'] == '083804':
-                            logger.error(data['message'])
-                            logger.info('Enter for close')
-                            input()
+                            logger.error(result['message'])
+                            time.sleep(30)
+                            return
                         else:
-                            logger.error(data['message'])
-                            continue
+                            logger.error(result['message'])
+                            time.sleep(30)
+                            return
 
                     self.send_order_info_buy(order_price, order_fiat, order_asset_amount, order_asset, order_min, order_max, order_merchant_name, order_trade_methods_name)
 
                     self.balance = temp_balance
-                    logger.info(f'Order maked | Balance={self.balance} {order_fiat}')
+                    logger.info(f'Order maked | Balance={int(self.balance)} {order_fiat}')
 
     def get_orders(self, fiat: str, asset: str):
         logger.info('Getting orders...')
@@ -240,10 +242,31 @@ class Binance:
         banks_list = f", ".join(banks)
         text = "Новый ордер\! *BUY*\n\n" \
                 f"Продавец: *{clear_MD(merchant_name)}*\n" \
-                f"Цена: *{clear_MD(fiat_per_one)}{clear_MD(fiat)}*\n" \
-                f"Доступно: *{clear_MD(avlbl_asset)}{clear_MD(asset)}*\n" \
-                f"Лимиты: *{clear_MD(limit_min)}{clear_MD(fiat)}* \<\-\> *{clear_MD(limit_max)}{clear_MD(fiat)}*\n" \
-                f"Банки: {banks_list}"
+                f"Цена: *{clear_MD(fiat_per_one)} {clear_MD(fiat)}*\n" \
+                f"Доступно: *{clear_MD(avlbl_asset)} {clear_MD(asset)}*\n" \
+                f"Лимиты: *{clear_MD(int(float(limit_min)))} {clear_MD(fiat)}* \<\-\> *{clear_MD(int(float(limit_max)))} {clear_MD(fiat)}*\n" \
+                f"Банки: *{banks_list}*\n" \
+                f"Баланс: *{clear_MD(int(self.balance))} {clear_MD(fiat)}*"
+
         asyncio.run(send(admin_id, text))
 
-    
+    def len_of_active_orders(self):
+        json_data = {
+            'orderStatusList': [
+                1,
+            ],
+            'page': 1,
+            'rows': 999,
+        }
+
+        response = requests.post(
+            'https://c2c.binance.com/bapi/c2c/v2/private/c2c/order-match/order-list',
+            cookies=self.cookies,
+            headers=self.headers,
+            json=json_data
+        )
+        data = json.loads(response.text)
+        try:
+            return int(data['total'])
+        except:
+            return data
