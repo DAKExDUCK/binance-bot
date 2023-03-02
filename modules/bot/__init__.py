@@ -19,14 +19,6 @@ def clear_MD(text: str) -> str:
 async def send(chat_id, text):
     try:
         return await bot.send_message(chat_id, text)
-    except exceptions.BotBlocked:
-        ...
-    except exceptions.ChatNotFound:
-        ...
-    except exceptions.RetryAfter as e:
-        await asyncio.sleep(e.timeout)
-        return await send(chat_id, text)
-    except exceptions.UserDeactivated:
-        ...
-    except exceptions.TelegramAPIError:
-        logger.error(f"{chat_id}\n{text}\n", exc_info=True)
+    except Exception as exc:
+        logger.error(exc, exc_info=True)
+        

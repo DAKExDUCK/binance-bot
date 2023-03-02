@@ -22,8 +22,9 @@ class Binance:
     cookies: dict
     headers: dict
 
-    def __init__(self, desired_price: float, balance: float, banks: list):
+    def __init__(self, desired_price: float, max_price_for_order: float, balance: float, banks: list):
         self.balance = balance
+        self.max_price_for_order = max_price_for_order
         self.desired_price = desired_price
         self.desired_banks = banks
 
@@ -67,7 +68,7 @@ class Binance:
                 time.sleep(0.5)
                 break
     
-    def wait_p2p_page_orders(self):
+    def wait_p2p_page_orders(self, fiat="UAH"):
         while 1:
             time.sleep(0.2)
             if len(self.browser.driver.find_elements(
@@ -75,7 +76,9 @@ class Binance:
                 '//div[contains(@class, "css-ovjtyv")]'
             )) > 0:
                 break
-
+            if self.browser.driver.current_url == "https://p2p.binance.com/ru/trade/all-payments/USDT?fiat=LOCAL":
+                self.browser.driver.get(f"https://p2p.binance.com/ru/trade/all-payments/USDT?fiat={fiat}")
+            
     def accept_all(self):
         try:
             self.browser.driver.find_element(
@@ -147,6 +150,8 @@ class Binance:
         
         if data['code'] != '000000' or status != 200:
             logger.error(data['message'])
+            text = data['message']
+            asyncio.run(send(admin_id, text))
             time.sleep(10)
             return
 
@@ -164,24 +169,29 @@ class Binance:
             order_trade_methods_name = [ trade_method['tradeMethodName'] for trade_method in order['adv']['tradeMethods'] ]
 
             if len(set(order_trade_methods_name) & set(self.desired_banks)) > 0:
-                if float(order_price) < self.desired_price and float(order_min) < self.balance:
+                if float(order_price) < self.desired_price and float(order_min) < self.max_price_for_order:
                     payment_amount = 0.0
-                    if self.balance > float(order_max):
-                        temp_balance = self.balance - float(order_max)
-                        payment_amount = float(order_max)
+                    if self.max_price_for_order >= self.balance:
+                        if self.balance > float(order_max):
+                            temp_balance = self.balance - float(order_max)
+                            payment_amount = float(order_max)
+                        else:
+                            temp_balance = self.balance - self.balance
+                            payment_amount = self.balance
                     else:
-                        temp_balance = self.balance - self.balance
-                        payment_amount = self.balance
+                        if self.max_price_for_order < float(order_max):
+                            temp_balance = self.balance - self.max_price_for_order
+                            payment_amount = self.max_price_for_order
+                        else:
+                            temp_balance = self.balance - float(order_max)
+                            payment_amount = float(order_max)
                     status, result = self.make_order(order_fiat, order_asset, order_id, order_price, payment_amount)
                     if result['code'] != '000000' or status != 200:
-                        if result['code'] == '083804':
-                            logger.error(result['message'])
-                            time.sleep(30)
-                            return
-                        else:
-                            logger.error(result['message'])
-                            time.sleep(30)
-                            return
+                        logger.error(result['message'])
+                        text = result['message']
+                        asyncio.run(send(admin_id, text))
+                        time.sleep(30)
+                        return
 
                     self.send_order_info_buy(order_price, order_fiat, order_asset_amount, order_asset, order_min, order_max, order_merchant_name, order_trade_methods_name)
 
@@ -207,7 +217,13 @@ class Binance:
             cookies=self.cookies,
             json=json_data,
         )
-        return response.status_code, json.loads(response.text)
+        try:
+            return response.status_code, json.loads(response.text)
+        except:
+            return response.status_code, {
+                'code': None,
+                'message': 'Ошибка при запросе'
+            }
 
     def get_order_info(self, id):
         response = requests.get(
